@@ -101,6 +101,91 @@ def load_runs(directory):
     return runs
 
 
+def definitions(doc):
+    """Reader-facing glossary, kept with the exporter so regeneration preserves it."""
+    doc.section("Definitions and abbreviations")
+    doc.paragraph("This reference explains the terms used in the result tables. A statistic must be read together with its units, sample count and table caption: the observations may be inference calls, process medians, memory snapshots or fitted candidates.")
+
+    def glossary(caption, entries):
+        doc.table(caption, ["Term", "Definition and interpretation"], entries,
+                  align=r">{\raggedright\arraybackslash}p{.24\textwidth}>{\raggedright\arraybackslash}p{.71\textwidth}")
+
+    doc.section("Statistics and table notation", "subsection")
+    glossary("Statistical definitions", [
+        ("N / count", "Number of observations used for a statistic. Each per-model warm-latency table has N=5,000 calls from five processes; the between-process-median table has N=5. A larger N does not by itself mean more independent models or participants."),
+        ("Mean", "Arithmetic average: sum the observations and divide by N. Unusually slow calls can pull the mean upward."),
+        ("Median / p50", "Middle value of the ordered observations, averaging the two middle values when N is even. Approximately half the observations lie at or below the median."),
+        ("p95", "95th percentile. Approximately 95% of observations are at or below this value and 5% are higher. For latency it describes the slower end of the measured calls. Ties, interpolation and rounding affect the exact proportion."),
+        ("SD / std", "Sample standard deviation: a measure of spread around the mean, in the same units as the observations. This report uses denominator N-1. A larger SD means more dispersion; it is not the standard error or a confidence interval."),
+        ("N=1, SD=0", "For a single observation, sample SD cannot be estimated. The exporter prints zero by convention; this does not demonstrate that the operation has no variability."),
+        ("Per-model vs window p95", "Per-model latency p95 is calculated across 5,000 measured calls. Window-summary p95 is calculated across the three seed candidates' summary values. These percentiles describe different sets of observations."),
+        ("Confidence interval (CI)", "An interval produced by a statistical method to quantify uncertainty in an estimated quantity. A p95 is a distribution percentile, not a 95% confidence interval. This benchmark report does not calculate confidence intervals."),
+        ("--- in a table", "No value is available or the metric does not apply. A dash does not represent zero."),
+    ])
+    doc.paragraph("Example: a latency p95 of 0.224 ms means approximately 95% of measured calls finished within 0.224 ms. It does not promise that every call finishes within this time. For 5,000 calls, the slowest 5% corresponds to about 250 calls.")
+    doc.paragraph("The exporter uses linear interpolation at zero-based position 0.95(N-1). Equivalently, order values from x(1) to x(N) using one-based ranks. With h=1+0.95(N-1), j=floor(h), and g=h-j, the percentile is:")
+    doc.add(r"\[\operatorname{p95}=(1-g)x_{(j)}+g x_{(\min(j+1,N))}.\]")
+    doc.paragraph("For N=5,000, h=4,750.05, so the result is 95% of the 4,750th ordered value plus 5% of the 4,751st. For three candidate summaries, h=2.9, so their p95 is 10% of the middle value plus 90% of the largest. Neither calculation is a maximum or a confidence bound.")
+
+    doc.section("Memory measurements", "subsection")
+    glossary("Memory definitions", [
+        ("RAM", "Random-access memory: the device's working memory. The device RAM figure is distinct from memory attributed to this app."),
+        ("PSS", "Proportional Set Size. Counts memory resident for the process, assigning shared pages in proportion to the number of processes sharing them. It is useful for attributing physical-memory cost without charging every process the full shared page."),
+        ("RSS", "Resident Set Size. Counts the process's resident memory, including shared pages at their full size. Summing RSS across processes can count the same shared page more than once."),
+        ("Native PSS", "Android's native-heap PSS category, read from Debug.MemoryInfo.nativePss. It is one part of total PSS, not a measurement of every native allocation or all native-library code pages."),
+        ("Dalvik PSS", "Android's managed-runtime heap PSS category, read from Debug.MemoryInfo.dalvikPss. The historical name remains in the API even on Android's ART runtime. It does not represent all Flutter/Dart memory."),
+        ("Baseline", "Snapshot after initializing the global runtime and loading the prepared input/expected fixtures, with no model session loaded. It already includes substantial benchmark-harness memory."),
+        ("Loaded", "Snapshot after model asset reading and inference-session creation, before the first prediction and validation calls."),
+        ("Warmed", "Snapshot after parity validation and, for inference runs, 100 explicit warmup calls. Replay warms the model through validation before playback."),
+        ("Observed / end", "Observed snapshots are taken during inference or replay. End snapshots are taken after that workload; replay end is recorded for each session. These phase labels do not imply continuous memory tracing."),
+        ("Delta / incremental PSS", "A phase snapshot minus the same process's baseline. Deltas are calculated within each process before aggregation. They estimate extra process cost and include runtime/validation/harness effects, not only model weights."),
+        ("Observed peak PSS", "Largest PSS value among the collected snapshots. A brief higher allocation between snapshots may be missed."),
+        ("High-water RSS", "Largest RSS reached during the process lifetime so far, as reported by the operating system. It includes earlier initialization and validation and is not a per-phase incremental peak."),
+    ])
+    doc.paragraph("Illustrative example: if a process has 4 MiB of private resident memory and shares another 10 MiB equally with one other process, its RSS is 14 MiB and its PSS is 4+10/2=9 MiB. Separately, a hypothetical baseline PSS of 120 MiB and warmed PSS of 150 MiB give a within-process delta of 30 MiB. These examples are explanatory, not additional phone measurements.")
+    doc.add(r"\noindent Memory terminology and category names follow the \href{https://developer.android.com/tools/dumpsys\#meminfo}{Android memory inspection documentation} and the \href{https://developer.android.com/reference/android/os/Debug.MemoryInfo}{Debug.MemoryInfo API reference}.\par")
+
+    doc.section("Timing and experimental procedure", "subsection")
+    glossary("Timing and benchmark definitions", [
+        ("Inference / prediction", "Applying a fitted model to an input feature vector to produce a class label and class probabilities."),
+        ("Latency", "Elapsed time to perform an operation. The native, full Flutter, load and replay timers cover different operations; their captions define the boundary."),
+        ("Native inference", "The timed Java/JNI ONNX Runtime session call using an already constructed input tensor. Tensor creation, output decoding/disposal and Flutter-channel transfer are outside this timer."),
+        ("Full Flutter call", "Elapsed time from requesting inference in Dart until the native result returns, including channel transfer, tensor creation, execution, output decoding and disposal. Feature extraction happens separately."),
+        ("Load / first inference", "Load covers asset reading and session creation with the global runtime already initialized. First inference is the first prediction after loading. Neither guarantees uncached storage reads because prior checksum checks and OS caches can affect them."),
+        ("Warmup / warm inference", "Warmup calls exercise the loaded model before collecting the main timing samples. Warm inference reuses the existing session. This study performs 100 explicit warmups after validation before 1,000 measured calls per inference process."),
+        ("Batch size 1", "One feature vector is classified per inference call. The benchmark does not measure large-batch throughput."),
+        ("Process repetition", "A separate app-process launch for a candidate. Repeated calls within one process are different from independent process repetitions. The latency and memory studies use five fresh processes per candidate."),
+        ("Replay", "Processing recorded sensor events. Accelerated replay runs without original waiting intervals; real-time replay follows event timestamp spacing. Neither is live sensor acquisition."),
+        ("Decode / buffer / feature", "Decode covers reading/decoding recorded input. Buffer work retains and removes events for overlapping windows. Feature extraction computes the ordered statistical inputs supplied to the model."),
+        ("Replay processing", "Buffer work since the preceding window, quality checks/feature extraction and the full inference call. Decode and waiting are recorded separately or excluded, as specified in the report."),
+        ("Schedule lag", "How late a replay prediction finishes relative to its window's expected completion time. It includes processing and scheduling delays; it is distinct from native inference latency."),
+        ("Window W / step", "W is the duration of sensor history used to compute features. Step is the interval between successive window starts. Here W=100/120/140 seconds and step=50/60/70 seconds."),
+        ("Observation delay", "Time required to collect a full valid sensor window before the first result. It is separate from millisecond-scale processing and may be longer when quality checks reject a window."),
+        ("Seed / candidate", "A seed controls random choices in tuning/training. A candidate is one fitted window/seed model. These candidates have different winning hyperparameters, so seed comparisons do not isolate randomness alone."),
+        ("Protocol complete", "The report's completeness flag: at least five fresh release processes, recorded code versions and no recorded thermal interruptions, plus the required call counts or memory phases. It is not an accuracy guarantee or a claim of population representativeness."),
+    ])
+
+    doc.section("Units, formats and software abbreviations", "subsection")
+    glossary("Units and abbreviations", [
+        ("s / ms / us", "Seconds / milliseconds / microseconds. The ASCII suffix us denotes microseconds: 1 second=1,000 ms=1,000,000 us, and 1 ms=1,000 us."),
+        ("Byte / KiB / MiB", "A byte is 8 bits. KiB means kibibyte (1,024 bytes); MiB means mebibyte (1,048,576 bytes). These binary units differ from decimal kB (1,000 bytes) and MB (1,000,000 bytes)."),
+        ("Hz", "Hertz, meaning events or cycles per second. In the quality checks it is the sensor sampling rate, not the model prediction rate."),
+        ("Float32", "A 32-bit floating-point numerical representation, used for the model's input features. It does not imply the entire app or all intermediate calculations use 32-bit arithmetic."),
+        ("CPU / execution provider", "Central Processing Unit / the ONNX Runtime backend that executes model operators. This study uses CPUExecutionProvider and does not measure GPU or neural-accelerator performance."),
+        ("ONNX / ORT", "Open Neural Network Exchange / ONNX Runtime. ONNX is the exported model representation; ONNX Runtime is the software that loads and executes it."),
+        ("APK", "Android application package: the .apk file installed on the phone. It includes app/runtime code and bundled models and fixtures, so APK size is different from model graph size."),
+        ("ABI / ARM64", "Application Binary Interface / the 64-bit ARM architecture targeted by this APK. An ABI specifies binary compatibility conventions for the device and native libraries."),
+        ("SDK / API", "Software Development Kit / Application Programming Interface. The Android SDK number recorded here is the platform API level; it is distinct from the device's reported Android release string."),
+        ("JNI / platform channel", "Java Native Interface / Flutter's Dart-to-Android message bridge. JNI connects Java/Kotlin-side runtime calls to native code; the Flutter platform channel adds another layer included in the full-call timer."),
+        ("Joblib", "Python object-serialization format used for the saved training pipeline. Its byte size includes Python-side pipeline state and is reported separately from the deployed ONNX artifact."),
+        ("XGBoost", "Extreme Gradient Boosting, the boosted-tree classifier family used for all nine candidates."),
+        ("Macro F1", "Unweighted mean of per-class F1 scores. Each F1 combines precision P and recall R as 2PR/(P+R). Scores range from 0 to 1, with larger values better. The saved inner macro F1 values in this document are tuning-selection scores, not independent deployment accuracy."),
+        ("Parity / rtol / atol", "Parity is agreement with the reference implementation. Labels must match exactly; probabilities pass when the absolute difference is no greater than atol + rtol times the absolute reference value. Here atol=1e-6 and rtol=1e-5."),
+        ("SHA-256 / commit", "A content checksum / a recorded Git source revision. Checksums identify the exact input/model bytes; the commit identifies the source version used to build the measured app."),
+    ])
+    doc.add(r"\clearpage")
+
+
 def complete_summary_tables(doc, summary):
     """Render every numerical leaf from comparison/windows, with a coverage check."""
     coverage = set()
@@ -275,6 +360,7 @@ def export(project, output):
     doc.paragraph("These figures describe this handset and software configuration. Whole-process memory includes the benchmark harness. There is no independent accuracy score for the full-cohort deployment artifacts.")
     doc.add(r"\vfill\textbf{Units:} 1 KiB = 1,024 bytes; 1 MiB = 1,048,576 bytes. Timing tables use microseconds unless explicitly marked otherwise.\end{titlepage}\hypersetup{pageanchor=true}")
     doc.add(r"\tableofcontents\clearpage")
+    definitions(doc)
     doc.section("Study setup and interpretation")
     device = runs[0]["device"]
     doc.key_values("Device and fixed execution settings", [

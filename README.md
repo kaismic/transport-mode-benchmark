@@ -111,6 +111,8 @@ The desktop runner detects process exits before export, records cooldown/repetit
 
 ## LaTeX result-summary export
 
+The report opens with a definitions and abbreviations section covering p95 (including interpolation and the distinction between call-level and candidate-level percentiles), mean/median/SD/N, PSS/RSS and memory phases, timing boundaries, units and software terms. Worked p95 and shared-memory examples explain how to read the results.
+
 The complete result summary is exported as [reports/phone-benchmark-results.tex](reports/phone-benchmark-results.tex), with a compiled PDF at [output/pdf/phone-benchmark-results.pdf](output/pdf/phone-benchmark-results.pdf). It contains all 987 numerical fields from the primary comparison/window summaries, model-size/parity tables, timing distributions, PSS/RSS phases, APK accounting, replay components, model parameters and separately labelled diagnostic runs. Raw individual call/snapshot records are supplied in the companion CSV/JSON archive rather than printed as tens of thousands of document rows.
 
 Regenerate from the preserved local results and manifest:
