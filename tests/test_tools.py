@@ -89,6 +89,29 @@ def test_report_excludes_failures_and_rejects_duplicate_runs(tmp_path):
         report(tmp_path / "input", tmp_path / "out")
 
 
+def test_memory_report_requires_baseline_and_warmed_samples(tmp_path):
+    for index in range(5):
+        run = sample_run(index)
+        run["mode"] = "memory"
+        run["samples"] = []
+        write_json(tmp_path / "input" / f"r{index}.json", run)
+    assert not report(tmp_path / "input", tmp_path / "out")[0]["protocol_complete"]
+    for index in range(5):
+        path = tmp_path / "input" / f"r{index}.json"
+        run = read_json(path)
+        run["memory"] = [{"model_id": "model", "phase": phase, "pss_kib": pss}
+                         for phase, pss in [("baseline", 100), ("loaded", 110), ("warmed", 120), ("inference_end", 120)]]
+        write_json(path, run)
+    row = report(tmp_path / "input", tmp_path / "out")[0]
+    assert row["protocol_complete"]
+    assert row["warmed_pss_delta_kib_median"] == 20
+    import csv
+    with (tmp_path / "out/memory.csv").open() as stream:
+        samples = list(csv.DictReader(stream))
+    assert len(samples) == 20
+    assert {s["pss_delta_kib"] for s in samples} == {"0", "10", "20"}
+
+
 def test_packaged_size_categories(tmp_path):
     import zipfile
     path = tmp_path / "app.apk"

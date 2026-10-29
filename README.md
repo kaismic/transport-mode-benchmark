@@ -8,7 +8,7 @@ A separate Flutter/Android harness for comparing classification models on a phys
 - Desktop ONNX labels match Python on **38,820** cases, including missing-value fixtures. Maximum probability difference is **1.1920929e-7**. Desktop and Android use ONNX Runtime **1.24.3**.
 - Deployed models total **1,794,861 bytes**, individually **104,934–483,463 bytes**. These are complete preprocessing/classifier graphs with 11 float32 inputs and three probabilities.
 - Python tests check conversion, missing indicators, original-extractor replay parity, process schedules, APK accounting and report calculations. Flutter tests check streamed feature parity, bounded buffers, cancellation cleanup and UI initialization.
-- The ARM64 release APK builds. No physical Android phone was connected during implementation, so **phone latency, phone memory, Android numerical parity and on-device sharing remain unmeasured/unverified**. The app checks Android parity before retaining a successful run.
+- The ARM64 release APK runs on a connected Pixel 4a. All nine models passed Android numerical parity; five fresh-process latency runs and five memory runs per model completed, followed by complete accelerated replay for all nine. See [VALIDATION.md](VALIDATION.md) for measured results and remaining test limits. The app checks Android parity before retaining a successful run.
 
 ## Prepare the local model/data bundle
 
@@ -106,3 +106,5 @@ On-device validation compares every saved feature-table row and missing-value fi
 References: [ONNX Runtime Android](https://onnxruntime.ai/docs/tutorials/mobile/), [thread settings](https://onnxruntime.ai/docs/performance/tune-performance/threading.html), [Android benchmarking](https://developer.android.com/topic/performance/benchmarking/microbenchmark-overview), [Android memory](https://developer.android.com/tools/dumpsys#meminfo).
 
 Release builds retain the ONNX Runtime Java API classes with the binding's required R8 keep rule; omitting it causes JNI output-conversion crashes. See [Android binding build notes](https://onnxruntime.ai/docs/build/android.html).
+
+The desktop runner detects process exits before export, records cooldown/repetition settings, and fails promptly on missing installations. Replay buffer timing accumulates sub-microsecond durations; replay results do not claim inference-only warmup/call counts. Memory protocol flags require baseline, loaded, warmed and final phase samples.

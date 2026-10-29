@@ -251,7 +251,8 @@ class BenchmarkRunner {
         var start = session['start_ms'] as int;
         final end = session['end_ms'] as int;
         final playback = Stopwatch()..start();
-        var decodeUs = 0, bufferUs = 0, index = 0, lastMemoryUs = -1000000;
+        var decodeUs = 0, index = 0, lastMemoryUs = -1000000;
+        var bufferUs = 0.0;
         final interruptionCount = interruptions.length;
         Future<void> emit() async {
           final watch = Stopwatch()..start();
@@ -298,7 +299,7 @@ class BenchmarkRunner {
           final trim = Stopwatch()..start();
           buffer.discardBefore(start);
           trim.stop();
-          bufferUs = trim.elapsedMicroseconds;
+          bufferUs = trim.elapsedTicks * 1000000 / trim.frequency;
           decodeUs = 0;
         }
 
@@ -348,7 +349,7 @@ class BenchmarkRunner {
             final update = Stopwatch()..start();
             buffer.add(row);
             update.stop();
-            bufferUs += update.elapsedMicroseconds;
+            bufferUs += update.elapsedTicks * 1000000 / update.frequency;
             if (memoryPass &&
                 playback.elapsedMicroseconds - lastMemoryUs >= 1000000) {
               await snapshot(
@@ -420,8 +421,8 @@ class BenchmarkRunner {
         'FLUTTER_VERSION',
         defaultValue: 'unrecorded',
       ),
-      'warmup': 100,
-      'iterations': 1000,
+      'warmup': mode.startsWith('replay') ? 0 : 100,
+      'iterations': mode.startsWith('replay') ? null : 1000,
       'samples': samples,
       'memory': memory,
       'interruptions': interruptions,

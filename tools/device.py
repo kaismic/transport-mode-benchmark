@@ -81,7 +81,10 @@ def main():
         write_json(args.output / "apk-size.json", apk_size(args.apk))
     plan = schedule(ids, args.repetitions, args.seed)
     write_json(args.output / "schedule.json", {"schema_version": 1, "mode": args.mode, "seed": args.seed,
-                                               "manifest_sha256": sha256(args.manifest), "tasks": plan})
+                                               "manifest_sha256": sha256(args.manifest),
+                                               "repetitions": args.repetitions,
+                                               "cooldown_seconds": args.cooldown_seconds,
+                                               "timeout_seconds": args.timeout_seconds, "tasks": plan})
     for repeat, model in plan:
         token = f"{args.mode}_r{repeat}_{model}_{uuid.uuid4().hex[:8]}"
         remote = f"/sdcard/Android/data/{PACKAGE}/files/results/{token}.json"
@@ -96,6 +99,8 @@ def main():
                 exists = adb("shell", "test", "-f", remote, check=False).returncode == 0
                 if exists:
                     break
+                if adb("shell", "pidof", PACKAGE, check=False).returncode != 0:
+                    raise RuntimeError(f"Benchmark process exited before exporting {token}; inspect adb logcat -b crash")
                 time.sleep(2)
             else:
                 raise TimeoutError(f"No completion export for {token}; inspect the phone or adb logcat")

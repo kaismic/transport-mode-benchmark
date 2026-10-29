@@ -59,8 +59,12 @@ def report(source, output):
             continue
         for sample in run["samples"]:
             raw.append({"run_id": run["run_id"], "mode": run["mode"], **sample})
+        baselines = {s["model_id"]: s["pss_kib"] for s in run["memory"] if s["phase"] == "baseline"}
         for sample in run["memory"]:
-            memory.append({"run_id": run["run_id"], "mode": run["mode"], **sample})
+            row = {"run_id": run["run_id"], "mode": run["mode"], **sample}
+            if sample["model_id"] in baselines:
+                row["pss_delta_kib"] = sample["pss_kib"] - baselines[sample["model_id"]]
+            memory.append(row)
         for model in run["models"]:
             groups[(model["id"], run["mode"])].append((run, model))
     rows = []
@@ -96,6 +100,10 @@ def report(source, output):
         if mode == "latency":
             official = official and all(sum(s["kind"] == "warm" and s["model_id"] == model_id
                                            for s in r["samples"]) == 1000 for r, _ in items)
+        if mode == "memory" or mode.endswith("_memory"):
+            required = {"baseline", "loaded", "warmed", "inference_end" if mode == "memory" else "replay_end"}
+            official = official and all(required <= {s["phase"] for s in r["memory"]
+                                                     if s["model_id"] == model_id} for r, _ in items)
         row = {"model_id": model_id, "mode": mode, "window_seconds": model["window_seconds"], "seed": model["seed"],
                "model_bytes": model["bytes"], "model_sha256": model["sha256"],
                "process_runs": len(items), "protocol_complete": official}
@@ -113,7 +121,6 @@ def report(source, output):
         if all_memory:
             row["observed_peak_pss_kib"] = max(all_memory)
         rows.append(row)
-        memory.extend({"mode": mode, **delta} for delta in deltas)
     csv_write(output / "comparison.csv", rows)
     # Preserve nested prediction/probability data as JSON cells in CSV.
     import json
