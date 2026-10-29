@@ -108,3 +108,18 @@ References: [ONNX Runtime Android](https://onnxruntime.ai/docs/tutorials/mobile/
 Release builds retain the ONNX Runtime Java API classes with the binding's required R8 keep rule; omitting it causes JNI output-conversion crashes. See [Android binding build notes](https://onnxruntime.ai/docs/build/android.html).
 
 The desktop runner detects process exits before export, records cooldown/repetition settings, and fails promptly on missing installations. Replay buffer timing accumulates sub-microsecond durations; replay results do not claim inference-only warmup/call counts. Memory protocol flags require baseline, loaded, warmed and final phase samples.
+
+## LaTeX result-summary export
+
+The complete result summary is exported as [reports/phone-benchmark-results.tex](reports/phone-benchmark-results.tex), with a compiled PDF at [output/pdf/phone-benchmark-results.pdf](output/pdf/phone-benchmark-results.pdf). It contains all 987 numerical fields from the primary comparison/window summaries, model-size/parity tables, timing distributions, PSS/RSS phases, APK accounting, replay components, model parameters and separately labelled diagnostic runs. Raw individual call/snapshot records are supplied in the companion CSV/JSON archive rather than printed as tens of thousands of document rows.
+
+Regenerate from the preserved local results and manifest:
+
+```powershell
+.venv/Scripts/python tools/export_latex.py
+tectonic --outdir output/pdf reports/phone-benchmark-results.tex
+```
+
+A standard LaTeX installation can also compile the self-contained source (run `pdflatex` twice for the contents and page references). The document uses common `booktabs`, `longtable`, `pdflscape`, `hyperref`, `fancyhdr`, `lastpage` and Latin Modern packages. [Tectonic installation](https://tectonic-typesetting.github.io/book/latest/installation/index.html) is optional; its compiler/cache is not part of this repository.
+
+The exporter requires the original 99-run study and prepared manifest, verifies that their identities agree, and fails if a numerical aggregate field is omitted. `artifacts/latex-export/coverage.json` records coverage/table counts. `artifacts/latex-export/phone-benchmark-results-data.zip` contains full-precision aggregate files, raw timing/memory CSVs, diagnostic JSON exports, model configuration and the LaTeX source. The archive and compiler intermediates remain local ignored artifacts. Diagnostics from subsequent app builds are not pooled into the measured study.
