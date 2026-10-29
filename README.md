@@ -104,3 +104,5 @@ The inference runner accepts model-specific feature widths and output names. Syd
 On-device validation compares every saved feature-table row and missing-value fixture against Python labels/probabilities (`rtol=1e-5`, `atol=1e-6`). Replay checks every accepted/rejected boundary and feature vector against Python goldens. A mismatch marks the result failed. Cancellation closes streams/sessions; each prediction disposes tensors/results. Live sensors, background services, iOS, accelerators, quantization and energy measurement are deferred.
 
 References: [ONNX Runtime Android](https://onnxruntime.ai/docs/tutorials/mobile/), [thread settings](https://onnxruntime.ai/docs/performance/tune-performance/threading.html), [Android benchmarking](https://developer.android.com/topic/performance/benchmarking/microbenchmark-overview), [Android memory](https://developer.android.com/tools/dumpsys#meminfo).
+
+Release builds retain the ONNX Runtime Java API classes with the binding's required R8 keep rule; omitting it causes JNI output-conversion crashes. See [Android binding build notes](https://onnxruntime.ai/docs/build/android.html).
